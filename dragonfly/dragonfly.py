@@ -1,5 +1,22 @@
+# ======================================================================= #
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        #
+#  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     #
+#  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. #
+#  IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR      #
+#  OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,  #
+#  ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR  #
+#  OTHER DEALINGS IN THE SOFTWARE.                                        #
+#                                                                         #
+#  For more information, please refer to <http://unlicense.org>           #
+# ======================================================================= #
 import abc
+import importlib
 import logging
+from datetime import datetime
+
+import yaml
+
+from dragonfly import util
 
 
 class DataReader(abc.ABC):
@@ -58,3 +75,40 @@ class DataSyncClient():
 
     def __exit__(self, *args):
         self.__destination.close()
+
+
+DATABASE_CONFIG = 'database'
+ENTITIES_CONFIG = 'entities'
+META_CONFIG = 'meta'
+LAST_SYNC = 'last_sync'
+
+
+class Sync:
+    def __init__(self, config_filename, reader_args={}, adapter_args={}):
+        self.start_time = datetime.now()
+        self.config_filename = config_filename
+        with open(config_filename) as stream:
+            self.config = yaml.load(stream)
+
+        intro = self.config['sync']
+        module = importlib.import_module(intro['module_name'])
+        reader_class = getattr(module, intro['data_reader'])
+        adapter_class = getattr(module, intro['persistence_adapter'])
+
+        self.reader = reader_class(**reader_args)
+        self.writer = DataWriter(adapter_class(**adapter_args))
+
+    def run(self):
+        entities = self.config[ENTITIES_CONFIG]
+
+        total = 0
+
+        with DataSyncClient(self.reader, self.writer) as sync:
+            for entity, metadata in entities.items():
+                total += sync(entity, metadata)
+                metadata[LAST_SYNC] = util.to_lucene(self.start_time)
+
+        with open(self.config_filename, 'w') as stream:
+            yaml.dump(self.config, stream, **self.config[META_CONFIG])
+
+        return total

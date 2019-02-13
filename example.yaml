@@ -1,14 +1,10 @@
 # example.yaml
 # This is an example file.
 
-database:
-  host: 127.0.01
-  user: root
-  database: dragonfly
-  # This is not the password, but the name of the file where
-  # the actual password is stored. The file should be hidden
-  # and ignored for safety reasons. Path is relative.
-  password: path/to/.password_file
+sync:
+  module_name: dragonfly.examples
+  data_reader: RESTClient
+  persistence_adapter: FileAdapter
 
 # Entities
 entities:
@@ -41,18 +37,6 @@ entities:
 
     # Nested entities. note that the structure is recursive
     relationships:
-      orderItems:
-        fields:
-        - id
-        - name
-        - price
-
-        ignore:
-        - quantity
-
-        mapping: {
-          id: sku
-        }
       seller:
         fields:
         - name
