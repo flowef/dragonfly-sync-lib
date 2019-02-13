@@ -1,0 +1,7 @@
+requests
+pymongo
+flake8
+rope
+yapf
+mysql-connector-python
+yaml

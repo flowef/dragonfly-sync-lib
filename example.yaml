@@ -1,0 +1,68 @@
+# example.yaml
+# This is an example file.
+
+database:
+  host: 127.0.01
+  user: root
+  database: dragonfly
+  # This is not the password, but the name of the file where
+  # the actual password is stored. The file should be hidden
+  # and ignored for safety reasons. Path is relative.
+  password: path/to/.password_file
+
+# Entities
+entities:
+  Order:
+    # The destination table name
+    table: migration_Order
+    # Date when this entity was last synced. Format is:
+    # %Y%m%dT%H%M%S
+    last_sync: 20190214T1337
+    # Whether to process hard or soft deletions
+    soft_delete: false
+    # The list of fields we wish to sync
+    fields:
+    - id
+    - customerId
+    - total
+    - status
+
+    # Fields the data source might include (even though we
+    # didn't ask for them) and that we wish to skip
+    ignore:
+    - origin
+
+    # All fields mapped here will have their column names
+    # altered from the key to the value. If a field is missing,
+    # the column name is unchanged from the data source
+    mapping: {
+      customerId: customer_number
+    }
+
+    # Nested entities. note that the structure is recursive
+    relationships:
+      orderItems:
+        fields:
+        - id
+        - name
+        - price
+
+        ignore:
+        - quantity
+
+        mapping: {
+          id: sku
+        }
+      seller:
+        fields:
+        - name
+
+        ignore:
+        - address
+        - crn
+        - id
+
+# You probably don't need to alter this section
+meta:
+  indent: 2
+  default_flow_style: false
