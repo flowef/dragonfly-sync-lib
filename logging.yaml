@@ -1,0 +1,5 @@
+# logging.yaml - Logging Configuration
+enabled: true
+format: "%(asctime)-15s %(message)s"
+level: DEBUG
+file: sync.log

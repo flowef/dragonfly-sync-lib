@@ -23,17 +23,27 @@
 import logging
 import sys
 
-from dragonfly import dragonfly
+import yaml
 
-LOG_ENTRY_FORMAT = '%(asctime)-15s %(message)s'
-logging.basicConfig(
-    filename='log.txt', level=logging.DEBUG, format=LOG_ENTRY_FORMAT)
+from dragonfly import dragonfly, examples
 
 if __name__ == "__main__":
     config_filename = sys.argv[1]
 
-    sync = dragonfly.Sync(config_filename)
-    total = sync.run()
+    try:
+        with open('logging.yaml') as stream:
+            logging_config = yaml.load(stream)
+        if logging_config['enabled']:
+            logging.basicConfig(
+                filename=logging_config['file'],
+                level=logging_config['level'],
+                format=logging_config['format'])
+    except FileNotFoundError:
+        print("Logging configuration not found. No activities will be logged.")
+
+    sync = dragonfly.Sync(config_filename, examples.RESTClient(),
+                          examples.FileAdapter())
+    total = sync()
     summary = f"Synced {total} records!"
     logging.info(summary)
     print(summary)

@@ -26,7 +26,7 @@ import os
 from dragonfly import dragonfly
 
 
-class RESTClient(dragonfly.DataReader):
+class RESTClient(dragonfly.DataSourceAdapter):
     def __init__(self):
         self.data = [{
             "id": 1,
@@ -57,6 +57,9 @@ class RESTClient(dragonfly.DataReader):
 
     def fetch(self, entity_name, metadata):
         yield self.data
+
+    def close(self, *args, **kwargs):
+        pass
 
 
 class FileAdapter(dragonfly.PersistenceAdapter):

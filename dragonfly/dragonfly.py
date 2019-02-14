@@ -21,7 +21,6 @@
 # SOFTWARE.
 #
 import abc
-import importlib
 import logging
 from datetime import datetime
 
@@ -30,9 +29,19 @@ import yaml
 from dragonfly import util
 
 
-class DataReader(abc.ABC):
+class DataIO(abc.ABC):
+    @abc.abstractmethod
+    def close(self, *args, **kwargs):
+        pass
+
+
+class DataSourceAdapter(abc.ABC):
     @abc.abstractmethod
     def fetch(self, entity: str, metadata: dict):
+        pass
+
+    @abc.abstractmethod
+    def close(self, *args, **kwargs):
         pass
 
 
@@ -46,38 +55,54 @@ class PersistenceAdapter(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def close(self):
+    def close(self, *args, **kwargs):
         pass
 
 
-class DataWriter():
+class DataReader(DataIO):
+    def __init__(self, ds_adapter: DataSourceAdapter):
+        self.data_source = ds_adapter
+
+    def __call__(self, entity_name: str, metadata: dict):
+        return self.read(entity_name, metadata)
+
+    def read(self, entity_name: str, metadata: dict):
+        return self.data_source.fetch(entity_name, metadata)
+
+    def close(self, *args, **kwargs):
+        self.data_source.close(*args, **kwargs)
+
+
+class DataWriter(DataIO):
     def __init__(self, db_adapter: PersistenceAdapter):
         self.client = db_adapter
 
-    def update(self, entity_name, metadata, datasource):
+    def __call__(self, entity_name: str, metadata: dict, datasource: dict):
+        self.update(entity_name, metadata, datasource)
+
+    def update(self, entity_name: str, metadata: dict, datasource: dict):
         logging.debug(f"update {entity_name}: process started...")
         for row in datasource:
-            logging.debug(row)
             if (not metadata['soft_delete'] and row.get('isDeleted')):
                 self.client.remove(metadata['table'], row)
             else:
                 self.client.upsert(metadata['table'], row, metadata)
         logging.debug(f"update {entity_name}: process finished!")
 
-    def close(self):
-        self.client.close()
+    def close(self, *args, **kwargs):
+        self.client.close(*args, **kwargs)
 
 
 class DataSyncClient():
-    def __init__(self, source: DataReader, destination: DataWriter):
-        self.__source = source
-        self.__destination = destination
+    def __init__(self, reader: DataWriter, writer: DataWriter):
+        self.read = reader
+        self.write = writer
 
     def sync(self, entity_name: str, metadata: dict) -> int:
         logging.debug(f"Started syncing of {entity_name}")
         count = 0
-        for batch in self.__source.fetch(entity_name, metadata):
-            self.__destination.update(entity_name, metadata, batch)
+        for batch in self.read(entity_name, metadata):
+            self.write(entity_name, metadata, batch)
             count += len(batch)
         return count
 
@@ -85,41 +110,36 @@ class DataSyncClient():
         return self.sync
 
     def __exit__(self, *args):
-        self.__destination.close()
-
-
-DATABASE_CONFIG = 'database'
-ENTITIES_CONFIG = 'entities'
-META_CONFIG = 'meta'
-LAST_SYNC = 'last_sync'
+        self.read.close()
+        self.write.close()
 
 
 class Sync:
-    def __init__(self, config_filename, reader_args={}, adapter_args={}):
-        self.start_time = datetime.now()
+    def __init__(self, config_filename: str, reader: DataSourceAdapter,
+                 adapter: PersistenceAdapter):
         self.config_filename = config_filename
+        self.reader = DataReader(reader)
+        self.writer = DataWriter(adapter)
+
         with open(config_filename) as stream:
             self.config = yaml.load(stream)
 
-        intro = self.config['sync']
-        module = importlib.import_module(intro['module_name'])
-        reader_class = getattr(module, intro['data_reader'])
-        adapter_class = getattr(module, intro['persistence_adapter'])
+    def __update_config(self):
+        with open(self.config_filename, 'w') as stream:
+            yaml.dump(self.config, stream, **self.config['meta'])
 
-        self.reader = reader_class(**reader_args)
-        self.writer = DataWriter(adapter_class(**adapter_args))
-
-    def run(self):
-        entities = self.config[ENTITIES_CONFIG]
-
-        total = 0
+    def run(self, *args, **kwargs):
+        start_time = datetime.now()
+        records_synced = 0
 
         with DataSyncClient(self.reader, self.writer) as sync:
-            for entity, metadata in entities.items():
-                total += sync(entity, metadata)
-                metadata[LAST_SYNC] = util.to_lucene(self.start_time)
+            for entity, metadata in self.config['entities'].items():
+                records_synced += sync(entity, metadata)
+                metadata['last_sync'] = util.to_lucene(start_time)
 
-        with open(self.config_filename, 'w') as stream:
-            yaml.dump(self.config, stream, **self.config[META_CONFIG])
+        self.__update_config()
 
-        return total
+        return records_synced
+
+    def __call__(self, *args, **kwargs):
+        return self.run(*args, **kwargs)
