@@ -21,6 +21,8 @@
 # SOFTWARE.
 #
 import logging
+import os
+import sys
 
 EXAMPLE_FILENAME = 'example.yaml'
 DEFAULT_FILENAME = 'sync.yaml'
@@ -38,3 +40,12 @@ def gen_sample_sync_config():
         raise
 
     logging.info(f"Done! Written to '{DEFAULT_FILENAME}'")
+
+
+if __name__ == "__main__":
+    overwrite = len(sys.argv) > 1 and sys.argv[1] == "--overwrite"
+    if not os.path.isfile(DEFAULT_FILENAME) or overwrite:
+        gen_sample_sync_config()
+    else:
+        print("A sync configuration file already exists.")
+        print("Use --overwrite if you wish to overwrite it.")
