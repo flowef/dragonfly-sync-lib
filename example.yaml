@@ -1,11 +1,4 @@
-# example.yaml
-# This is an example file.
-
-sync:
-  module_name: dragonfly.examples
-  data_reader: RESTClient
-  persistence_adapter: FileAdapter
-
+# example.yaml - Example entity sync configuration
 # Entities
 entities:
   Order:
