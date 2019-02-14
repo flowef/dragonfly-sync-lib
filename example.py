@@ -33,11 +33,7 @@ def config_logging():
     try:
         with open('logging.yaml') as stream:
             logging_config = yaml.load(stream)
-        if logging_config['enabled']:
-            logging.basicConfig(
-                filename=logging_config['file'],
-                level=logging_config['level'],
-                format=logging_config['format'])
+            logging.basicConfig(**logging_config)
     except FileNotFoundError:
         print("Logging configuration not found. No activities will be logged.")
 
