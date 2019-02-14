@@ -35,27 +35,19 @@ class DataIO(abc.ABC):
         pass
 
 
-class DataSourceAdapter(abc.ABC):
+class DataSourceAdapter(DataIO):
     @abc.abstractmethod
     def fetch(self, entity: str, metadata: dict):
         pass
 
-    @abc.abstractmethod
-    def close(self, *args, **kwargs):
-        pass
 
-
-class PersistenceAdapter(abc.ABC):
+class PersistenceAdapter(DataIO):
     @abc.abstractmethod
     def upsert(self, collection: str, record: dict, metadata: dict):
         pass
 
     @abc.abstractmethod
     def remove(self, collection: str, record: dict, metadata: dict = None):
-        pass
-
-    @abc.abstractmethod
-    def close(self, *args, **kwargs):
         pass
 
 
@@ -66,8 +58,9 @@ class DataReader(DataIO):
     def __call__(self, entity_name: str, metadata: dict):
         return self.read(entity_name, metadata)
 
+    @abc.abstractmethod
     def read(self, entity_name: str, metadata: dict):
-        return self.data_source.fetch(entity_name, metadata)
+        pass
 
     def close(self, *args, **kwargs):
         self.data_source.close(*args, **kwargs)
@@ -80,6 +73,20 @@ class DataWriter(DataIO):
     def __call__(self, entity_name: str, metadata: dict, datasource: dict):
         self.update(entity_name, metadata, datasource)
 
+    @abc.abstractmethod
+    def update(self, entity_name: str, metadata: dict, datasource: dict):
+        pass
+
+    def close(self, *args, **kwargs):
+        self.client.close(*args, **kwargs)
+
+
+class DefaultDataReader(DataReader):
+    def read(self, entity_name: str, metadata: dict):
+        return self.data_source.fetch(entity_name, metadata)
+
+
+class DefaultDataWriter(DataWriter):
     def update(self, entity_name: str, metadata: dict, datasource: dict):
         logging.debug(f"update {entity_name}: process started...")
         for row in datasource:
@@ -88,9 +95,6 @@ class DataWriter(DataIO):
             else:
                 self.client.upsert(metadata['table'], row, metadata)
         logging.debug(f"update {entity_name}: process finished!")
-
-    def close(self, *args, **kwargs):
-        self.client.close(*args, **kwargs)
 
 
 class DataSyncClient():
@@ -115,11 +119,11 @@ class DataSyncClient():
 
 
 class Sync:
-    def __init__(self, config_filename: str, reader: DataSourceAdapter,
-                 adapter: PersistenceAdapter):
+    def __init__(self, config_filename: str, reader: DataReader,
+                 writer: DataWriter):
         self.config_filename = config_filename
-        self.reader = DataReader(reader)
-        self.writer = DataWriter(adapter)
+        self.reader = reader
+        self.writer = writer
 
         with open(config_filename) as stream:
             self.config = yaml.load(stream)

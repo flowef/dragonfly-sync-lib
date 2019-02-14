@@ -41,8 +41,11 @@ if __name__ == "__main__":
     except FileNotFoundError:
         print("Logging configuration not found. No activities will be logged.")
 
-    sync = dragonfly.Sync(config_filename, examples.RESTClient(),
-                          examples.FileAdapter())
+    reader = dragonfly.DefaultDataReader(examples.RESTClient())
+    writer = dragonfly.DefaultDataWriter(examples.FileAdapter())
+
+    sync = dragonfly.Sync(config_filename, reader, writer)
+
     total = sync()
     summary = f"Synced {total} records!"
     logging.info(summary)
