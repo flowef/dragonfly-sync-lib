@@ -21,15 +21,15 @@
 # SOFTWARE.
 #
 import logging
+import os
 import sys
 
 import yaml
 
 from dragonfly import dragonfly, examples
 
-if __name__ == "__main__":
-    config_filename = sys.argv[1]
 
+def config_logging():
     try:
         with open('logging.yaml') as stream:
             logging_config = yaml.load(stream)
@@ -40,6 +40,19 @@ if __name__ == "__main__":
                 format=logging_config['format'])
     except FileNotFoundError:
         print("Logging configuration not found. No activities will be logged.")
+
+
+config_logging()
+
+if __name__ == "__main__":
+    config_filename = sys.argv[1]
+
+    if not os.path.isfile(config_filename):
+        logging.info(f"{config_filename} not found! "
+                     "Will try to generate default config from example.")
+        import gen_config
+        gen_config.gen_sample_sync_config()
+        config_filename = 'sync.yaml'
 
     reader = dragonfly.DefaultDataReader(examples.RESTClient())
     writer = dragonfly.DefaultDataWriter(examples.FileAdapter())
