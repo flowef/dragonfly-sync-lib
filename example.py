@@ -47,7 +47,7 @@ if __name__ == "__main__":
         logging.info(f"{config_filename} not found! "
                      "Will try to generate default config from example.")
         import gen_config
-        gen_config.gen_sample_sync_config()
+        gen_config.gen_sample_sync_config(config_filename)
         config_filename = 'sync.yaml'
 
     reader = dragonfly.DefaultDataReader(examples.RESTClient())

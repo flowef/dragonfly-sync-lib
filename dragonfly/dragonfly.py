@@ -32,22 +32,30 @@ from dragonfly import util
 class DataIO(abc.ABC):
     @abc.abstractmethod
     def close(self, *args, **kwargs):
+        """ Closes a stream of data."""
         pass
 
 
 class DataSourceAdapter(DataIO):
     @abc.abstractmethod
     def fetch(self, entity: str, metadata: dict):
+        """ Executes routines to read entity-related data from a source
+        using metadata to guide the search. """
         pass
 
 
 class PersistenceAdapter(DataIO):
     @abc.abstractmethod
     def upsert(self, collection: str, record: dict, metadata: dict):
+        """ Executes routines to write entity-related data to a
+        persistence medium. This method inserts data if it doesn't
+        already exist, and updates data if it does. """
         pass
 
     @abc.abstractmethod
     def remove(self, collection: str, record: dict, metadata: dict = None):
+        """ Executes routines to delete entity-related data from the
+        persistence medium. """
         pass
 
 
@@ -63,6 +71,7 @@ class DataReader(DataIO):
         pass
 
     def close(self, *args, **kwargs):
+        """ Delegates stream closure to underlying adapter. """
         self.data_source.close(*args, **kwargs)
 
 
@@ -78,19 +87,30 @@ class DataWriter(DataIO):
         pass
 
     def close(self, *args, **kwargs):
+        """ Delegates stream closure to underlying adapter. """
         self.client.close(*args, **kwargs)
 
 
 class DefaultDataReader(DataReader):
+    """ A simple data reader that delegates reading to its
+    underlying adapter. """
+
     def read(self, entity_name: str, metadata: dict):
+        """ Calls data fetching routine from the underlying adapter. """
         return self.data_source.fetch(entity_name, metadata)
 
 
 class DefaultDataWriter(DataWriter):
+    """ A simple data writer that upserts or deletes data. """
+
     def update(self, entity_name: str, metadata: dict, datasource: dict):
+        """ Calls the underlying persistence adapter to upsert or delete
+        data. This method uses a configurable deletion flag in `metadata`
+        to decide which path to take. """
         logging.debug(f"update {entity_name}: process started...")
         for row in datasource:
-            if (not metadata['soft_delete'] and row.get('isDeleted')):
+            if not metadata['soft_delete'] and row.get(
+                    metadata.get('delete_flag')):
                 self.client.remove(metadata['table'], row)
             else:
                 self.client.upsert(metadata['table'], row, metadata)
@@ -98,11 +118,15 @@ class DefaultDataWriter(DataWriter):
 
 
 class DataSyncClient():
+    """ A data synchronization client that reads from the underlying data
+    reader and writes using the underlying data writer. """
+
     def __init__(self, reader: DataWriter, writer: DataWriter):
         self.read = reader
         self.write = writer
 
     def sync(self, entity_name: str, metadata: dict) -> int:
+        """ Synchronizes data and returns the row count. """
         logging.debug(f"Started syncing of {entity_name}")
         count = 0
         for batch in self.read(entity_name, metadata):
@@ -118,7 +142,7 @@ class DataSyncClient():
         self.write.close()
 
 
-class Sync:
+class Sync():
     def __init__(self, config_filename: str, reader: DataReader,
                  writer: DataWriter):
         self.config_filename = config_filename
