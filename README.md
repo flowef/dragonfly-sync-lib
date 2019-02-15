@@ -1,6 +1,6 @@
-# :dragon_face: Dragonfly - A Python Data Synchronization Library
+# :dragon_face: Dragonfly - A Python Data Translation Library
 
-A library that facilitates transporting data around.
+A library that facilitates data translation.
 
 ## Changelog
 
