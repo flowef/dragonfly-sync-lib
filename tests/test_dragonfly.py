@@ -12,7 +12,7 @@ class DummyDataSource(dragonfly.DataSourceAdapter):
         with open('tests/update.json') as update:
             yield json.load(update)
 
-    def close(self):
+    def close(self, *args):
         pass
 
 
@@ -34,7 +34,7 @@ class DummyPersistence(dragonfly.PersistenceAdapter):
     def remove(self, collection, record, metadata=None):
         DummyDB.remove(record['id'])
 
-    def close(self):
+    def close(self, *args):
         pass
 
 
@@ -91,12 +91,10 @@ def test__writer_calls_remove_on_hard_delete():
 
 
 def test__sync_client_produces_correct_record_count():
-    data_reader = dragonfly.DefaultDataReader(DummyDataSource())
-    data_writer = dragonfly.DefaultDataWriter(DummyPersistence())
-
-    sync = dragonfly.Sync('tests/test.yaml', data_reader, data_writer)
-
-    records = sync()
+    source = dragonfly.DefaultDataReader(DummyDataSource())
+    destination = dragonfly.DefaultDataWriter(DummyPersistence())
+    with dragonfly.Sync('tests/test.yaml') as sync:
+        records = sync(source, destination)
 
     assert len(DummyDB.db) == 2
     assert records == 3

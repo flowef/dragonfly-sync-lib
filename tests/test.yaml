@@ -1,0 +1,12 @@
+entities:
+  _:
+    delete_flag: deleted
+    fields:
+    - id
+    - value
+    last_sync: 20190218T171352
+    soft_delete: true
+    table: _
+meta:
+  default_flow_style: false
+  indent: 2

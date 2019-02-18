@@ -99,6 +99,12 @@ class DefaultDataReader(DataReader):
         """ Calls data fetching routine from the underlying adapter. """
         return self.data_source.fetch(entity_name, metadata)
 
+    def __enter__(self, *args, **kwargs):
+        return self
+
+    def __exit__(self, *args):
+        return self.close(*args)
+
 
 class DefaultDataWriter(DataWriter):
     """ A simple data writer that upserts or deletes data. """
@@ -116,58 +122,42 @@ class DefaultDataWriter(DataWriter):
                 self.client.upsert(metadata['table'], row, metadata)
         logging.debug(f"update {entity_name}: process finished!")
 
-
-class DataSyncClient():
-    """ A data synchronization client that reads from the underlying data
-    reader and writes using the underlying data writer. """
-
-    def __init__(self, reader: DataWriter, writer: DataWriter):
-        self.read = reader
-        self.write = writer
-
-    def sync(self, entity_name: str, metadata: dict) -> int:
-        """ Synchronizes data and returns the row count. """
-        logging.debug(f"Started syncing of {entity_name}")
-        count = 0
-        for batch in self.read(entity_name, metadata):
-            self.write(entity_name, metadata, batch)
-            count += len(batch)
-        return count
-
-    def __enter__(self):
-        return self.sync
+    def __enter__(self, *args, **kwargs):
+        return self
 
     def __exit__(self, *args):
-        self.read.close()
-        self.write.close()
+        return self.close(*args)
 
 
-class Sync():
-    def __init__(self, config_filename: str, reader: DataReader,
-                 writer: DataWriter):
+class Sync:
+    def __init__(self, config_filename: str):
         self.config_filename = config_filename
-        self.reader = reader
-        self.writer = writer
-
-        with open(config_filename) as stream:
-            self.config = yaml.load(stream)
 
     def __update_config(self):
         with open(self.config_filename, 'w') as stream:
             yaml.dump(self.config, stream, **self.config['meta'])
 
-    def run(self, *args, **kwargs):
+    def __read_config(self):
+        with open(self.config_filename) as stream:
+            self.config = yaml.load(stream)
+
+    def run(self, reader, writer):
         start_time = datetime.now()
         records_synced = 0
 
-        with DataSyncClient(self.reader, self.writer) as sync:
+        with reader as source, writer as destination:
             for entity, metadata in self.config['entities'].items():
-                records_synced += sync(entity, metadata)
+                logging.debug(f"Started syncing of {entity}")
+                for batch in source.read(entity, metadata):
+                    destination.update(entity, metadata, batch)
+                    records_synced += len(batch)
                 metadata['last_sync'] = util.to_lucene(start_time)
-
-        self.__update_config()
 
         return records_synced
 
-    def __call__(self, *args, **kwargs):
-        return self.run(*args, **kwargs)
+    def __enter__(self):
+        self.__read_config()
+        return self.run
+
+    def __exit__(self, *args):
+        self.__update_config()

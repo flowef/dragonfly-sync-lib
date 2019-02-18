@@ -85,5 +85,5 @@ class FileAdapter(dragonfly.PersistenceAdapter):
         with open(output_file, 'w') as stream:  # 582,23
             json.dump(existing_records, stream)
 
-    def close(self):
+    def close(self, *args, **kwargs):
         pass

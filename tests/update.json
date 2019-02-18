@@ -1,0 +1,12 @@
+[
+    {
+        "id": 1,
+        "value": "ok",
+        "deleted": true
+    },
+    {
+        "id": 2,
+        "value": "ok",
+        "deleted": false
+    }
+]

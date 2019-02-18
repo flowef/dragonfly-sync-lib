@@ -50,12 +50,12 @@ if __name__ == "__main__":
         gen_config.gen_sample_sync_config(config_filename)
         config_filename = 'sync.yaml'
 
-    reader = dragonfly.DefaultDataReader(examples.RESTClient())
-    writer = dragonfly.DefaultDataWriter(examples.FileAdapter())
+    source = dragonfly.DefaultDataReader(examples.RESTClient())
+    destination = dragonfly.DefaultDataWriter(examples.FileAdapter())
 
-    sync = dragonfly.Sync(config_filename, reader, writer)
+    with dragonfly.Sync(config_filename) as sync:
+        total = sync(source, destination)
 
-    total = sync()
     summary = f"Synced {total} records!"
     logging.info(summary)
     print(summary)
