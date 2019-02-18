@@ -1,11 +1,19 @@
 from dragonfly import dragonfly
 
-single_result = [{'id': 1, 'value': 'ok'}]
-double_result = [{'id': 1, 'value': 'ok'}, {'id': 2, 'value': 'ok'}]
+single_result = [{'id': 1, 'value': 'ok', 'deleted': False}]
+double_result = [{
+    'id': 1,
+    'value': 'ok',
+    'deleted': True
+}, {
+    'id': 2,
+    'value': 'ok',
+    'deleted': False
+}]
 unexpected_result = [{'id': 1, 'value': 'not ok'}]
 
 
-class TestReadAdapter(dragonfly.DataSourceAdapter):
+class DummyDataSource(dragonfly.DataSourceAdapter):
     def fetch(self, entity, metadata):
         if entity == "TestEntity":
             yield single_result
@@ -18,22 +26,23 @@ class TestReadAdapter(dragonfly.DataSourceAdapter):
         pass
 
 
-class SimulatedDB():
+class DummyDB():
     db = {}
 
     def upsert(self, id, value):
-        SimulatedDB.db[id] = value
+        DummyDB.db[id] = value
 
     def remove(self, id):
-        del SimulatedDB.db[id]
+        if id in DummyDB.db:
+            del DummyDB.db[id]
 
     def __getitem__(self, key):
-        return SimulatedDB.db[key]
+        return DummyDB.db.get(key)
 
 
-class TestPersistenceAdapter(dragonfly.PersistenceAdapter):
+class DummyPersistence(dragonfly.PersistenceAdapter):
     def __init__(self):
-        self.client = SimulatedDB()
+        self.client = DummyDB()
 
     def upsert(self, collection, record, metadata):
         self.client.upsert(record['id'], record['value'])
@@ -46,7 +55,7 @@ class TestPersistenceAdapter(dragonfly.PersistenceAdapter):
 
 
 def test__reader_calls_underlying_adapter():
-    data_reader = dragonfly.DefaultDataReader(TestReadAdapter())
+    data_reader = dragonfly.DefaultDataReader(DummyDataSource())
 
     result = next(data_reader.read('TestEntity', {}))
 
@@ -55,7 +64,7 @@ def test__reader_calls_underlying_adapter():
 
 
 def test__underlying_adapter_filters_entities_accordingly():
-    data_reader = dragonfly.DefaultDataReader(TestReadAdapter())
+    data_reader = dragonfly.DefaultDataReader(DummyDataSource())
 
     result = next(data_reader.read('OtherEntity', {}))
 
@@ -66,17 +75,44 @@ def test__underlying_adapter_filters_entities_accordingly():
 
 
 def test__writer_calls_upsert_on_soft_delete():
-    db = SimulatedDB()
+    db = DummyDB()
 
-    metadata = {'soft_delete': True, 'table': 'TestEntity'}
-    data_reader = dragonfly.DefaultDataReader(TestReadAdapter())
-
-    data_writer = dragonfly.DefaultDataWriter(TestPersistenceAdapter())
-    data_writer.update('TestEntity', metadata,
-                       data_reader.read('TestEntity', {}))
+    metadata = {
+        'soft_delete': True,
+        'table': 'TestEntity',
+        'delete_flag': 'deleted'
+    }
+    data_reader = dragonfly.DefaultDataReader(DummyDataSource())
+    data_writer = dragonfly.DefaultDataWriter(DummyPersistence())
+    records = next(data_reader.read('TestEntity', {}))
+    data_writer.update('TestEntity', metadata, records)
 
     assert db[1] == 'ok'
 
+    records = next(data_reader.read('OtherEntity', {}))
+    data_writer.update('TestEntity', metadata, records)
+
+    assert db[1] == 'ok'
+    assert db[2] == 'ok'
+
 
 def test__writer_calls_remove_on_hard_delete():
-    raise
+    db = DummyDB()
+
+    metadata = {
+        'soft_delete': False,
+        'table': 'TestEntity',
+        'delete_flag': 'deleted'
+    }
+    data_reader = dragonfly.DefaultDataReader(DummyDataSource())
+    data_writer = dragonfly.DefaultDataWriter(DummyPersistence())
+    records = next(data_reader.read('TestEntity', {}))
+    data_writer.update('TestEntity', metadata, records)
+
+    assert db[1] == 'ok'
+
+    records = next(data_reader.read('OtherEntity', {}))
+    data_writer.update('TestEntity', metadata, records)
+
+    assert db[1] is None
+    assert db[2] == 'ok'
