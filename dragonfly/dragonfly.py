@@ -22,11 +22,8 @@
 #
 import abc
 import logging
-from datetime import datetime
 
 import yaml
-
-from dragonfly import util
 
 
 class DataIO(abc.ABC):
@@ -63,8 +60,11 @@ class DataReader(DataIO):
     def __init__(self, ds_adapter: DataSourceAdapter):
         self.data_source = ds_adapter
 
-    def __call__(self, entity_name: str, metadata: dict):
-        return self.read(entity_name, metadata)
+    def __enter__(self, *args, **kwargs):
+        return self
+
+    def __exit__(self, *args):
+        return self.close(*args)
 
     @abc.abstractmethod
     def read(self, entity_name: str, metadata: dict):
@@ -78,6 +78,12 @@ class DataReader(DataIO):
 class DataWriter(DataIO):
     def __init__(self, db_adapter: PersistenceAdapter):
         self.client = db_adapter
+
+    def __enter__(self, *args, **kwargs):
+        return self
+
+    def __exit__(self, *args):
+        return self.close(*args)
 
     def __call__(self, entity_name: str, metadata: dict, datasource: dict):
         self.update(entity_name, metadata, datasource)
@@ -99,12 +105,6 @@ class DefaultDataReader(DataReader):
         """ Calls data fetching routine from the underlying adapter. """
         return self.data_source.fetch(entity_name, metadata)
 
-    def __enter__(self, *args, **kwargs):
-        return self
-
-    def __exit__(self, *args):
-        return self.close(*args)
-
 
 class DefaultDataWriter(DataWriter):
     """ A simple data writer that upserts or deletes data. """
@@ -122,12 +122,6 @@ class DefaultDataWriter(DataWriter):
                 self.client.upsert(metadata['table'], row, metadata)
         logging.debug(f"update {entity_name}: process finished!")
 
-    def __enter__(self, *args, **kwargs):
-        return self
-
-    def __exit__(self, *args):
-        return self.close(*args)
-
 
 class Sync:
     def __init__(self, config_filename: str):
@@ -141,17 +135,15 @@ class Sync:
         with open(self.config_filename) as stream:
             self.config = yaml.load(stream)
 
-    def run(self, reader, writer):
-        start_time = datetime.now()
+    def run(self, source, destination):
         records_synced = 0
 
-        with reader as source, writer as destination:
+        with source, destination:
             for entity, metadata in self.config['entities'].items():
                 logging.debug(f"Started syncing of {entity}")
                 for batch in source.read(entity, metadata):
                     destination.update(entity, metadata, batch)
                     records_synced += len(batch)
-                metadata['last_sync'] = util.to_lucene(start_time)
 
         return records_synced
 

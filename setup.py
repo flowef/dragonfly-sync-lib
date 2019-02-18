@@ -27,7 +27,7 @@ with open("README.md") as fh:
 
 setuptools.setup(
     name="dragonfly-sync-lib",
-    version="0.2.0",
+    version="1.0.0",
     author="Stephan Chang",
     author_email="stephan.chang@flowef.com",
     description="A library that facilitates transporting data around.",

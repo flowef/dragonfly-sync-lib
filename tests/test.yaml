@@ -4,7 +4,7 @@ entities:
     fields:
     - id
     - value
-    last_sync: 20190218T171352
+    last_sync: 20190218T172826
     soft_delete: true
     table: _
 meta:
