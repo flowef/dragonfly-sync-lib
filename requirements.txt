@@ -2,3 +2,4 @@ flake8
 rope
 yapf
 pyyaml
+pytest

@@ -9,6 +9,8 @@ entities:
     last_sync: 20190214T1337
     # Whether to process hard or soft deletions
     soft_delete: false
+    # The name of the field that contains the entity's unique identifier
+    id_field: id
     # The name of the flag through which a deletion is identified
     delete_flag: isDeleted
     # The list of fields we wish to sync
